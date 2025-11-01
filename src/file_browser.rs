@@ -4,7 +4,6 @@ use walkdir::WalkDir;
 
 #[derive(Clone)]
 pub enum FileEntry {
-   ParentDir,
    Directory(PathBuf),
    File(PathBuf),
 }
@@ -50,7 +49,6 @@ impl FileBrowser {
                 (FileEntry::File(p1), FileEntry::File(p2)) => p1.cmp(p2),
                 (FileEntry::Directory(_), FileEntry::File(_)) => std::cmp::Ordering::Less,
                 (FileEntry::File(_), FileEntry::Directory(_)) => std::cmp::Ordering::Greater,
-                _ => std::cmp::Ordering::Equal,
             }
         });
 
@@ -69,17 +67,6 @@ impl FileBrowser {
            self.entries.len() + 1 // +1 for ".." parent entry
        } else {
            self.entries.len()
-       }
-   }
-
-   pub fn get_entry_at(&self, index: usize) -> Option<FileEntry> {
-       if self.has_parent {
-           if index == 0 {
-               return Some(FileEntry::ParentDir);
-           }
-           self.entries.get(index - 1).cloned()
-       } else {
-           self.entries.get(index).cloned()
        }
    }
 
@@ -177,7 +164,6 @@ impl FileBrowser {
                (FileEntry::File(p1), FileEntry::File(p2)) => p1.cmp(p2),
                (FileEntry::Directory(_), FileEntry::File(_)) => std::cmp::Ordering::Less,
                (FileEntry::File(_), FileEntry::Directory(_)) => std::cmp::Ordering::Greater,
-               _ => std::cmp::Ordering::Equal,
            }
        });
        

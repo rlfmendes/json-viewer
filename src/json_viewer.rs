@@ -38,11 +38,11 @@ impl JsonViewer {
         self.content.as_deref()
     }
 
-    pub fn get_hierarchical_view(&self) -> Option<String> {
+/*     pub fn get_hierarchical_view(&self) -> Option<String> {
         self.parsed_json
             .as_ref()
             .map(|json| self.format_json_hierarchical(json, 0))
-    }
+    } */
 
     pub fn get_hierarchical_view_with_depth(&self, max_depth: Option<usize>) -> Option<String> {
         self.parsed_json
@@ -162,46 +162,6 @@ impl JsonViewer {
                 line_paths.push(path.to_string());
                 format!("{indent_str}{}\n", self.format_simple_value(value))
             }
-        }
-    }
-
-    fn format_json_hierarchical(&self, value: &Value, indent: usize) -> String {
-        let indent_str = "  ".repeat(indent);
-        
-        match value {
-            Value::Object(map) => {
-                let mut result = String::new();
-                for (key, val) in map {
-                    let _ = write!(result, "{indent_str}{key}: ");
-                    match val {
-                        Value::Object(_) | Value::Array(_) => {
-                            result.push('\n');
-                            result.push_str(&self.format_json_hierarchical(val, indent + 1));
-                        }
-                        _ => {
-                            let _ = writeln!(result, "{}", self.format_simple_value(val));
-                        }
-                    }
-                }
-                result
-            }
-            Value::Array(arr) => {
-                let mut result = String::new();
-                for (idx, val) in arr.iter().enumerate() {
-                    let _ = write!(result, "{indent_str}[{idx}]: ");
-                    match val {
-                        Value::Object(_) | Value::Array(_) => {
-                            result.push('\n');
-                            result.push_str(&self.format_json_hierarchical(val, indent + 1));
-                        }
-                        _ => {
-                            let _ = writeln!(result, "{}", self.format_simple_value(val));
-                        }
-                    }
-                }
-                result
-            }
-            _ => format!("{indent_str}{}\n", self.format_simple_value(value)),
         }
     }
 

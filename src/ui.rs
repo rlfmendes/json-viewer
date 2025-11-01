@@ -99,7 +99,6 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
             let (prefix, path) = match entry {
                 FileEntry::Directory(path) => ("[D]", path),
                 FileEntry::File(path) => ("[-]", path),
-                FileEntry::ParentDir => unreachable!(),
             };
             let name = format!("{} {}", prefix, app.file_browser.get_display_name(path.as_path()));
             let style = if actual_idx == app.file_browser.selected_index {

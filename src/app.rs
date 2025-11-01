@@ -44,7 +44,10 @@ pub struct App {
 
 impl App {
     pub fn new(path: PathBuf) -> Result<Self> {
-        let file_browser = FileBrowser::new(&path)?;
+        // Canonicalize the path to absolute path immediately
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+        
+        let file_browser = FileBrowser::new(&canonical_path)?;
         let json_viewer = JsonViewer::new();
         
         // Setup file watcher
@@ -54,7 +57,7 @@ impl App {
         })?;
         
         // Watch the directory for changes
-        watcher.watch(&path, RecursiveMode::Recursive)?;
+        watcher.watch(&canonical_path, RecursiveMode::Recursive)?;
         
         Ok(Self {
             file_browser,
@@ -64,7 +67,7 @@ impl App {
             focused_area: FocusedArea::FileList,
             query_input: String::new(),
             query_result: None,
-            root_path: path,
+            root_path: canonical_path,
             scroll_offset: 0,
             wrap_lines: true,
             fold_depth: None,
@@ -170,14 +173,6 @@ impl App {
             self.cursor_line = 0; // Reset cursor when executing query
         }
         Ok(())
-    }
-
-    pub fn scroll_up(&mut self) {
-        self.scroll_offset = self.scroll_offset.saturating_sub(1);
-    }
-
-    pub fn scroll_down(&mut self) {
-        self.scroll_offset = self.scroll_offset.saturating_add(1);
     }
 
     pub fn cursor_up(&mut self) {
