@@ -115,6 +115,22 @@ impl App {
         Ok(())
     }
 
+    pub fn navigate_into_directory(&mut self) -> Result<()> {
+        if let Some(dir_path) = self.file_browser.get_selected_directory() {
+            self.root_path = dir_path.clone();
+            self.file_browser = FileBrowser::new(&self.root_path)?;
+            self.json_viewer.current_file = None;
+            self.query_result = None;
+            self.scroll_offset = 0;
+            
+            // Update watcher for new directory
+            if let Some(watcher) = &mut self.watcher {
+                let _ = watcher.watch(&self.root_path, notify::RecursiveMode::Recursive);
+            }
+        }
+        Ok(())
+    }
+
     pub fn enter_query_mode(&mut self) {
         self.input_mode = InputMode::Query;
         self.query_input.clear();

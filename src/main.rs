@@ -116,7 +116,11 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                             // Check if parent directory is selected
                             if app.file_browser.is_parent_selected() {
                                 app.navigate_parent_dir()?;
+                            } else if app.file_browser.get_selected_directory().is_some() {
+                                // Navigate into the selected directory
+                                app.navigate_into_directory()?;
                             } else {
+                                // Open the selected file
                                 app.select_file()?;
                             }
                         }

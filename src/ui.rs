@@ -84,18 +84,24 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
         } else {
             Style::default().fg(Color::Cyan)
         };
-        items.push(ListItem::new("▲ ..").style(style));
+        items.push(ListItem::new("[D] ..").style(style));
     }
     
-    // Add file entries
+    // Add directory and file entries
+    use crate::file_browser::FileEntry;
     let file_items: Vec<ListItem> = app
         .file_browser
-        .files
+        .entries
         .iter()
         .enumerate()
-        .map(|(idx, path)| {
+        .map(|(idx, entry)| {
             let actual_idx = if app.file_browser.has_parent { idx + 1 } else { idx };
-            let name = format!("• {}", app.file_browser.get_display_name(path.as_path()));
+            let (prefix, path) = match entry {
+                FileEntry::Directory(path) => ("[D]", path),
+                FileEntry::File(path) => ("[-]", path),
+                FileEntry::ParentDir => unreachable!(),
+            };
+            let name = format!("{} {}", prefix, app.file_browser.get_display_name(path.as_path()));
             let style = if actual_idx == app.file_browser.selected_index {
                 Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
             } else {

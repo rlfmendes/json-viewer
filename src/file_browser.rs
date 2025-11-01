@@ -2,13 +2,15 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+#[derive(Clone)]
 pub enum FileEntry {
    ParentDir,
+   Directory(PathBuf),
    File(PathBuf),
 }
 
 pub struct FileBrowser {
-    pub files: Vec<PathBuf>,
+    pub entries: Vec<FileEntry>,
     pub selected_index: usize,
    pub current_path: PathBuf,
    pub has_parent: bool,
@@ -17,7 +19,7 @@ pub struct FileBrowser {
 impl FileBrowser {
     pub fn new(root: &Path) -> Result<Self> {
         let current_path = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-        let mut files = Vec::new();
+        let mut entries = Vec::new();
         
         for entry in WalkDir::new(&current_path)
             .max_depth(1)
@@ -27,20 +29,35 @@ impl FileBrowser {
         {
             let path = entry.path();
             let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-            if canonical_path != current_path && path.is_file() {
-                // Only include JSON files and text files
-                if let Some(ext) = path.extension() {
-                    if ext == "json" || ext == "txt" {
-                        files.push(path.to_path_buf());
+            if canonical_path != current_path {
+                if path.is_dir() {
+                    entries.push(FileEntry::Directory(path.to_path_buf()));
+                } else if path.is_file() {
+                    // Only include JSON files and text files
+                    if let Some(ext) = path.extension() {
+                        if ext == "json" || ext == "txt" {
+                            entries.push(FileEntry::File(path.to_path_buf()));
+                        }
                     }
                 }
             }
-        }        files.sort();
+        }
+        
+        // Sort entries: directories first, then files
+        entries.sort_by(|a, b| {
+            match (a, b) {
+                (FileEntry::Directory(p1), FileEntry::Directory(p2)) => p1.cmp(p2),
+                (FileEntry::File(p1), FileEntry::File(p2)) => p1.cmp(p2),
+                (FileEntry::Directory(_), FileEntry::File(_)) => std::cmp::Ordering::Less,
+                (FileEntry::File(_), FileEntry::Directory(_)) => std::cmp::Ordering::Greater,
+                _ => std::cmp::Ordering::Equal,
+            }
+        });
 
         let has_parent = current_path.parent().is_some();
 
         Ok(Self {
-            files,
+            entries,
             selected_index: 0,
            current_path,
            has_parent,
@@ -49,9 +66,9 @@ impl FileBrowser {
 
    pub fn entry_count(&self) -> usize {
        if self.has_parent {
-           self.files.len() + 1 // +1 for ".." parent entry
+           self.entries.len() + 1 // +1 for ".." parent entry
        } else {
-           self.files.len()
+           self.entries.len()
        }
    }
 
@@ -60,9 +77,9 @@ impl FileBrowser {
            if index == 0 {
                return Some(FileEntry::ParentDir);
            }
-           self.files.get(index - 1).map(|p| FileEntry::File(p.clone()))
+           self.entries.get(index - 1).cloned()
        } else {
-           self.files.get(index).map(|p| FileEntry::File(p.clone()))
+           self.entries.get(index).cloned()
        }
    }
 
@@ -89,9 +106,32 @@ impl FileBrowser {
            if self.selected_index == 0 {
                return None; // Parent directory selected
            }
-           self.files.get(self.selected_index - 1)
+           match self.entries.get(self.selected_index - 1) {
+               Some(FileEntry::File(path)) => Some(path),
+               _ => None,
+           }
        } else {
-           self.files.get(self.selected_index)
+           match self.entries.get(self.selected_index) {
+               Some(FileEntry::File(path)) => Some(path),
+               _ => None,
+           }
+       }
+   }
+
+   pub fn get_selected_directory(&self) -> Option<&PathBuf> {
+       if self.has_parent {
+           if self.selected_index == 0 {
+               return None; // Parent directory selected
+           }
+           match self.entries.get(self.selected_index - 1) {
+               Some(FileEntry::Directory(path)) => Some(path),
+               _ => None,
+           }
+       } else {
+           match self.entries.get(self.selected_index) {
+               Some(FileEntry::Directory(path)) => Some(path),
+               _ => None,
+           }
        }
    }
 
@@ -107,7 +147,7 @@ impl FileBrowser {
     }
 
    pub fn refresh(&mut self) -> Result<()> {
-       let mut files = Vec::new();
+       let mut entries = Vec::new();
        
        for entry in WalkDir::new(&self.current_path)
            .max_depth(1)
@@ -117,23 +157,36 @@ impl FileBrowser {
        {
            let path = entry.path();
            let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-           if canonical_path != self.current_path && path.is_file() {
-               if let Some(ext) = path.extension() {
-                   if ext == "json" || ext == "txt" {
-                       files.push(path.to_path_buf());
+           if canonical_path != self.current_path {
+               if path.is_dir() {
+                   entries.push(FileEntry::Directory(path.to_path_buf()));
+               } else if path.is_file() {
+                   if let Some(ext) = path.extension() {
+                       if ext == "json" || ext == "txt" {
+                           entries.push(FileEntry::File(path.to_path_buf()));
+                       }
                    }
                }
            }
        }
 
-       files.sort();
+       // Sort entries: directories first, then files
+       entries.sort_by(|a, b| {
+           match (a, b) {
+               (FileEntry::Directory(p1), FileEntry::Directory(p2)) => p1.cmp(p2),
+               (FileEntry::File(p1), FileEntry::File(p2)) => p1.cmp(p2),
+               (FileEntry::Directory(_), FileEntry::File(_)) => std::cmp::Ordering::Less,
+               (FileEntry::File(_), FileEntry::Directory(_)) => std::cmp::Ordering::Greater,
+               _ => std::cmp::Ordering::Equal,
+           }
+       });
        
        // Maintain selection if possible
-       if self.selected_index >= files.len() + if self.has_parent { 1 } else { 0 } {
+       if self.selected_index >= entries.len() + if self.has_parent { 1 } else { 0 } {
            self.selected_index = 0;
        }
        
-       self.files = files;
+       self.entries = entries;
        Ok(())
    }
 }
