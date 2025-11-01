@@ -113,12 +113,14 @@ json-viewer /path/to/json/files
 ### Keyboard Controls
 
 #### Normal Mode
-- `Tab`: Cycle focus between Query input, File list, and JSON display
+- `Tab` / `Shift+Tab`: Cycle focus forward/backward between Query input, File list, and JSON display
 - `↑/↓`: Navigate through files (when file list is focused) OR scroll JSON content (when JSON display is focused)
 - `Enter`: Select and open a file (when file list is focused)
+- `←` or `Backspace`: Go to parent directory (when file list is focused)
 - `/`: Enter query mode
 - `v`: Toggle between plain text and hierarchical view
 - `w`: Toggle line wrapping in JSON display
+- `Space`: Collapse/expand child nodes in hierarchical view (global toggle)
 - `q` or `Ctrl+C`: Quit the application
 
 #### Query Mode

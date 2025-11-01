@@ -81,7 +81,7 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(idx, path)| {
-            let name = app.file_browser.get_display_name(path);
+            let name = app.file_browser.get_display_name(path.as_path());
             let style = if idx == app.file_browser.selected_index {
                 Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
             } else {
@@ -92,7 +92,7 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let title = if is_focused {
-        "Files [FOCUSED] (↑↓ to navigate, Enter to select)"
+        "Files [FOCUSED] (↑↓: navigate, Enter: open, ←/Backspace: parent)"
     } else {
         "Files (Tab to focus)"
     };
@@ -126,9 +126,9 @@ fn draw_json_viewer(f: &mut Frame, app: &App, area: Rect) {
     let wrap_text = if app.wrap_lines { "ON" } else { "OFF" };
     
     let title = if is_focused {
-        format!("JSON View [FOCUSED] - {} | Wrap: {} (↑↓: scroll, v: view, w: wrap)", view_mode_text, wrap_text)
+        format!("JSON View [FOCUSED] - {view_mode_text} | Wrap: {wrap_text} (↑↓: scroll, v: view, w: wrap, Space: collapse)")
     } else {
-        format!("JSON View - {} | Wrap: {} (Tab to focus)", view_mode_text, wrap_text)
+        format!("JSON View - {view_mode_text} | Wrap: {wrap_text} (Tab to focus)")
     };
 
     let border_style = if is_focused {
@@ -147,7 +147,9 @@ fn draw_json_viewer(f: &mut Frame, app: &App, area: Rect) {
                     .to_string()
             }
             ViewMode::Hierarchical => {
-                app.json_viewer.get_hierarchical_view()
+                app
+                    .json_viewer
+                    .get_hierarchical_view_with_depth(app.fold_depth)
                     .unwrap_or_else(|| "No valid JSON file selected".to_string())
             }
         }
@@ -157,11 +159,7 @@ fn draw_json_viewer(f: &mut Frame, app: &App, area: Rect) {
     let lines: Vec<&str> = content.lines().collect();
     let total_lines = lines.len();
     let visible_content = if app.scroll_offset < total_lines {
-        lines.iter()
-            .skip(app.scroll_offset)
-            .map(|s| *s)
-            .collect::<Vec<&str>>()
-            .join("\n")
+        lines[app.scroll_offset..].join("\n")
     } else {
         content
     };
@@ -177,8 +175,7 @@ fn draw_json_viewer(f: &mut Frame, app: &App, area: Rect) {
             .borders(Borders::ALL)
             .title(title)
             .border_style(border_style))
-        .wrap(wrap_mode)
-        .scroll((0, 0));
+        .wrap(wrap_mode);
 
     f.render_widget(paragraph, area);
 }
@@ -192,7 +189,7 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         .unwrap_or("No file selected");
 
     let help_text = match app.input_mode {
-        InputMode::Normal => "q: quit | Tab: cycle focus | /: query | v: view | w: wrap",
+        InputMode::Normal => "q: quit | Tab/Shift+Tab: focus | /: query | v: view | w: wrap | Space: collapse | ←/Backspace: parent",
         InputMode::Query => "Enter: execute query | Esc: cancel",
     };
 

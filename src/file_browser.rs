@@ -55,7 +55,7 @@ impl FileBrowser {
         self.files.get(self.selected_index)
     }
 
-    pub fn get_display_name(&self, path: &PathBuf) -> String {
+    pub fn get_display_name(&self, path: &Path) -> String {
         path.file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("???")
