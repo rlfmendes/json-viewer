@@ -1,10 +1,10 @@
+use crate::file_browser::FileBrowser;
+use crate::json_viewer::JsonViewer;
 use anyhow::Result;
-use notify::{RecommendedWatcher, RecursiveMode, Watcher, Event};
+use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
-use crate::file_browser::FileBrowser;
-use crate::json_viewer::JsonViewer;
 
 pub enum InputMode {
     Normal,
@@ -46,19 +46,19 @@ impl App {
     pub fn new(path: PathBuf) -> Result<Self> {
         // Canonicalize the path to absolute path immediately
         let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
-        
+
         let file_browser = FileBrowser::new(&canonical_path)?;
         let json_viewer = JsonViewer::new();
-        
+
         // Setup file watcher
         let (tx, rx) = channel();
         let mut watcher = notify::recommended_watcher(move |res| {
             let _ = tx.send(res);
         })?;
-        
+
         // Watch the directory for changes
         watcher.watch(&canonical_path, RecursiveMode::Recursive)?;
-        
+
         Ok(Self {
             file_browser,
             json_viewer,
@@ -93,14 +93,14 @@ impl App {
                             false
                         }
                     });
-                    
+
                     if is_relevant {
                         self.files_changed = true;
                     }
                 }
             }
         }
-        
+
         // Refresh file list if changes detected
         if self.files_changed {
             let _ = self.file_browser.refresh();
@@ -125,7 +125,7 @@ impl App {
             self.json_viewer.current_file = None;
             self.query_result = None;
             self.scroll_offset = 0;
-            
+
             // Update watcher for new directory
             if let Some(watcher) = &mut self.watcher {
                 let _ = watcher.watch(&self.root_path, notify::RecursiveMode::Recursive);
@@ -191,7 +191,9 @@ impl App {
             // Auto-scroll down if cursor goes below visible area
             let max_visible_line = self.scroll_offset + visible_height.saturating_sub(1);
             if self.cursor_line > max_visible_line {
-                self.scroll_offset = self.cursor_line.saturating_sub(visible_height.saturating_sub(1));
+                self.scroll_offset = self
+                    .cursor_line
+                    .saturating_sub(visible_height.saturating_sub(1));
             }
         }
     }
@@ -221,7 +223,7 @@ impl App {
             self.json_viewer.current_file = None;
             self.query_result = None;
             self.scroll_offset = 0;
-            
+
             // Update watcher for new directory
             if let Some(watcher) = &mut self.watcher {
                 let _ = watcher.watch(&self.root_path, notify::RecursiveMode::Recursive);

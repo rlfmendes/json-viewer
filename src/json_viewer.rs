@@ -21,8 +21,7 @@ impl JsonViewer {
     }
 
     pub fn load_file(&mut self, path: &PathBuf) -> Result<()> {
-        let content = fs::read_to_string(path)
-            .context("Failed to read file")?;
+        let content = fs::read_to_string(path).context("Failed to read file")?;
 
         // Try to parse as JSON
         let parsed = serde_json::from_str(&content).ok();
@@ -38,7 +37,7 @@ impl JsonViewer {
         self.content.as_deref()
     }
 
-/*     pub fn get_hierarchical_view(&self) -> Option<String> {
+    /*     pub fn get_hierarchical_view(&self) -> Option<String> {
         self.parsed_json
             .as_ref()
             .map(|json| self.format_json_hierarchical(json, 0))
@@ -56,7 +55,8 @@ impl JsonViewer {
     ) -> Option<(String, Vec<String>)> {
         self.parsed_json.as_ref().map(|json| {
             let mut line_paths = Vec::new();
-            let content = self.format_json_with_collapse(json, "", 0, collapsed_paths, &mut line_paths);
+            let content =
+                self.format_json_with_collapse(json, "", 0, collapsed_paths, &mut line_paths);
             (content, line_paths)
         })
     }
@@ -254,7 +254,9 @@ impl JsonViewer {
             q = q[1..q.len().saturating_sub(1)].to_string();
         }
         // Strip leading dot
-        if q.starts_with('.') { q.remove(0); }
+        if q.starts_with('.') {
+            q.remove(0);
+        }
         q
     }
 
@@ -270,48 +272,70 @@ impl JsonViewer {
 
         fn parse_segment(seg: &str) -> Vec<Token> {
             let mut tokens = Vec::new();
-            if seg.is_empty() { return tokens; }
+            if seg.is_empty() {
+                return tokens;
+            }
             // Split key and bracket parts, e.g., users[0][1] or users[]
             let mut key = String::new();
             let mut rest = seg;
             // Extract leading identifier
             for (i, ch) in seg.char_indices() {
-                if ch == '[' { rest = &seg[i..]; break; }
+                if ch == '[' {
+                    rest = &seg[i..];
+                    break;
+                }
                 key.push(ch);
-                if i == seg.len() - 1 { rest = &seg[seg.len()..]; }
+                if i == seg.len() - 1 {
+                    rest = &seg[seg.len()..];
+                }
             }
-            if !key.is_empty() { tokens.push(Token::Key(key)); }
+            if !key.is_empty() {
+                tokens.push(Token::Key(key));
+            }
             // Parse bracket expressions
             let mut r = rest;
             while let Some(pos) = r.find('[') {
                 if let Some(end) = r[pos..].find(']') {
-                    let inner = &r[pos+1 .. pos+end];
-                    if inner.trim().is_empty() || inner.trim() == "*" { tokens.push(Token::Wildcard); }
-                    else if let Ok(idx) = inner.trim().parse::<usize>() { tokens.push(Token::Index(idx)); }
-                    r = &r[pos+end+1 ..];
-                } else { break; }
+                    let inner = &r[pos + 1..pos + end];
+                    if inner.trim().is_empty() || inner.trim() == "*" {
+                        tokens.push(Token::Wildcard);
+                    } else if let Ok(idx) = inner.trim().parse::<usize>() {
+                        tokens.push(Token::Index(idx));
+                    }
+                    r = &r[pos + end + 1..];
+                } else {
+                    break;
+                }
             }
             tokens
         }
 
         fn parse_query(q: &str) -> Vec<Token> {
             let mut tokens = Vec::new();
-            for seg in q.split('.') { tokens.extend(parse_segment(seg)); }
+            for seg in q.split('.') {
+                tokens.extend(parse_segment(seg));
+            }
             tokens
         }
 
         fn walk(value: &Value, tokens: &[Token]) -> Vec<Value> {
-            if tokens.is_empty() { return vec![value.clone()]; }
+            if tokens.is_empty() {
+                return vec![value.clone()];
+            }
             match &tokens[0] {
                 Token::Key(k) => {
                     if let Value::Object(map) = value {
-                        if let Some(v) = map.get(k) { return walk(v, &tokens[1..]); }
+                        if let Some(v) = map.get(k) {
+                            return walk(v, &tokens[1..]);
+                        }
                     }
                     vec![Value::Null]
                 }
                 Token::Index(i) => {
                     if let Value::Array(arr) = value {
-                        if let Some(v) = arr.get(*i) { return walk(v, &tokens[1..]); }
+                        if let Some(v) = arr.get(*i) {
+                            return walk(v, &tokens[1..]);
+                        }
                     }
                     vec![Value::Null]
                 }
@@ -330,7 +354,10 @@ impl JsonViewer {
 
         let tokens = parse_query(query);
         let results = walk(value, &tokens);
-        if results.len() == 1 { results.into_iter().next().unwrap_or(Value::Null) }
-        else { Value::Array(results) }
+        if results.len() == 1 {
+            results.into_iter().next().unwrap_or(Value::Null)
+        } else {
+            Value::Array(results)
+        }
     }
 }

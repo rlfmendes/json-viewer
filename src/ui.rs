@@ -13,8 +13,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // Query box
-            Constraint::Min(0),     // Main content
-            Constraint::Length(3),  // Status bar
+            Constraint::Min(0),    // Main content
+            Constraint::Length(3), // Status bar
         ])
         .split(f.area());
 
@@ -42,7 +42,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
 fn draw_query_box(f: &mut Frame, app: &App, area: Rect) {
     let is_focused = matches!(app.focused_area, FocusedArea::Query);
-    
+
     let style = match app.input_mode {
         InputMode::Query => Style::default().fg(Color::Yellow),
         InputMode::Normal => {
@@ -66,27 +66,33 @@ fn draw_query_box(f: &mut Frame, app: &App, area: Rect) {
         "JQL Query"
     };
 
-    let paragraph = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title(title).style(style));
+    let paragraph = Paragraph::new(text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .style(style),
+    );
 
     f.render_widget(paragraph, area);
 }
 
 fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
     let is_focused = matches!(app.focused_area, FocusedArea::FileList);
-    
+
     let mut items: Vec<ListItem> = Vec::new();
-    
+
     // Add parent directory entry if available
     if app.file_browser.has_parent {
         let style = if app.file_browser.selected_index == 0 {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Cyan)
         };
         items.push(ListItem::new("[D] ..").style(style));
     }
-    
+
     // Add directory and file entries
     use crate::file_browser::FileEntry;
     let file_items: Vec<ListItem> = app
@@ -95,21 +101,31 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(idx, entry)| {
-            let actual_idx = if app.file_browser.has_parent { idx + 1 } else { idx };
+            let actual_idx = if app.file_browser.has_parent {
+                idx + 1
+            } else {
+                idx
+            };
             let (prefix, path) = match entry {
                 FileEntry::Directory(path) => ("[D]", path),
                 FileEntry::File(path) => ("[-]", path),
             };
-            let name = format!("{} {}", prefix, app.file_browser.get_display_name(path.as_path()));
+            let name = format!(
+                "{} {}",
+                prefix,
+                app.file_browser.get_display_name(path.as_path())
+            );
             let style = if actual_idx == app.file_browser.selected_index {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
             };
             ListItem::new(name).style(style)
         })
         .collect();
-    
+
     items.extend(file_items);
 
     let title = if is_focused {
@@ -117,7 +133,7 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
     } else {
         "Files (Tab to focus)"
     };
-    
+
     let border_style = if is_focused {
         Style::default().fg(Color::Cyan)
     } else {
@@ -129,7 +145,7 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(border_style)
+                .border_style(border_style),
         )
         .highlight_style(Style::default().add_modifier(Modifier::BOLD));
 
@@ -138,14 +154,14 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_json_viewer(f: &mut Frame, app: &mut App, area: Rect) {
     let is_focused = matches!(app.focused_area, FocusedArea::JsonDisplay);
-    
+
     let view_mode_text = match app.view_mode {
         ViewMode::PlainText => "Plain Text",
         ViewMode::Hierarchical => "Hierarchical",
     };
-    
+
     let wrap_text = if app.wrap_lines { "ON" } else { "OFF" };
-    
+
     let title = if is_focused {
         format!("JSON View [FOCUSED] - {view_mode_text} | Wrap: {wrap_text} (↑↓: navigate, v: view, w: wrap, Space: collapse)")
     } else {
@@ -162,14 +178,17 @@ fn draw_json_viewer(f: &mut Frame, app: &mut App, area: Rect) {
         result.clone()
     } else {
         match app.view_mode {
-            ViewMode::PlainText => {
-                app.json_viewer.get_plain_text()
-                    .unwrap_or("No file selected")
-                    .to_string()
-            }
+            ViewMode::PlainText => app
+                .json_viewer
+                .get_plain_text()
+                .unwrap_or("No file selected")
+                .to_string(),
             ViewMode::Hierarchical => {
                 // Use collapse-aware rendering for hierarchical view
-                if let Some((content, paths)) = app.json_viewer.get_hierarchical_view_with_collapse(&app.collapsed_paths) {
+                if let Some((content, paths)) = app
+                    .json_viewer
+                    .get_hierarchical_view_with_collapse(&app.collapsed_paths)
+                {
                     // Update line_to_path mapping
                     app.line_to_path = paths;
                     content
@@ -183,7 +202,7 @@ fn draw_json_viewer(f: &mut Frame, app: &mut App, area: Rect) {
     // Render with cursor highlight when focused
     let lines: Vec<&str> = content.lines().collect();
     let total_lines = lines.len();
-    
+
     if is_focused && total_lines > 0 {
         // Render line by line with cursor highlight
         let visible_lines: Vec<Line> = lines
@@ -206,11 +225,12 @@ fn draw_json_viewer(f: &mut Frame, app: &mut App, area: Rect) {
             })
             .collect();
 
-        let paragraph = Paragraph::new(visible_lines)
-            .block(Block::default()
+        let paragraph = Paragraph::new(visible_lines).block(
+            Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(border_style));
+                .border_style(border_style),
+        );
 
         f.render_widget(paragraph, area);
     } else {
@@ -228,10 +248,12 @@ fn draw_json_viewer(f: &mut Frame, app: &mut App, area: Rect) {
         };
 
         let paragraph = Paragraph::new(visible_content)
-            .block(Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(border_style))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(title)
+                    .border_style(border_style),
+            )
             .wrap(wrap_mode);
 
         f.render_widget(paragraph, area);
@@ -259,8 +281,8 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         Line::from(help_text),
     ];
 
-    let paragraph = Paragraph::new(status)
-        .block(Block::default().borders(Borders::ALL).title("Status"));
+    let paragraph =
+        Paragraph::new(status).block(Block::default().borders(Borders::ALL).title("Status"));
 
     f.render_widget(paragraph, area);
 }
