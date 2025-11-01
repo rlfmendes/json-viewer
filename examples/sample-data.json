@@ -1,0 +1,35 @@
+[
+  {
+    "id": 1,
+    "name": "John Doe",
+    "age": 30,
+    "email": "john@example.com",
+    "address": {
+      "street": "123 Main St",
+      "city": "New York",
+      "country": "USA"
+    }
+  },
+  {
+    "id": 2,
+    "name": "Jane Smith",
+    "age": 25,
+    "email": "jane@example.com",
+    "address": {
+      "street": "456 Oak Ave",
+      "city": "Los Angeles",
+      "country": "USA"
+    }
+  },
+  {
+    "id": 3,
+    "name": "Bob Johnson",
+    "age": 35,
+    "email": "bob@example.com",
+    "address": {
+      "street": "789 Pine Rd",
+      "city": "Chicago",
+      "country": "USA"
+    }
+  }
+]

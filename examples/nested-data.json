@@ -1,0 +1,36 @@
+{
+  "company": "TechCorp",
+  "employees": [
+    {
+      "name": "Alice",
+      "role": "Developer",
+      "skills": ["Rust", "Python", "JavaScript"]
+    },
+    {
+      "name": "Bob",
+      "role": "Designer",
+      "skills": ["Figma", "Photoshop", "Sketch"]
+    }
+  ],
+  "projects": {
+    "active": [
+      {
+        "name": "Project Alpha",
+        "status": "in-progress",
+        "deadline": "2025-12-31"
+      },
+      {
+        "name": "Project Beta",
+        "status": "planning",
+        "deadline": "2026-03-15"
+      }
+    ],
+    "completed": [
+      {
+        "name": "Project Gamma",
+        "status": "completed",
+        "completedDate": "2025-09-01"
+      }
+    ]
+  }
+}

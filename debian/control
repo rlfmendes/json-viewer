@@ -1,0 +1,13 @@
+Package: json-viewer
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: ARCH_PLACEHOLDER
+Maintainer: Ricardo <your-email@example.com>
+Description: Terminal-based JSON file viewer with query capabilities
+ A fast, cross-platform command-line tool for browsing and viewing JSON files.
+ Features include:
+  - File browser with keyboard navigation
+  - Plain text and hierarchical JSON views
+  - JQL query support for filtering JSON data
+  - Built with Rust for speed and reliability

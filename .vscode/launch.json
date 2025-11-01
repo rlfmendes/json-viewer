@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'json-viewer'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=json-viewer",
+          "--package=json-viewer"
+        ],
+        "filter": {
+          "name": "json-viewer",
+          "kind": "bin"
+        }
+      },
+      "args": ["examples/"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=json-viewer",
+          "--package=json-viewer"
+        ],
+        "filter": {
+          "name": "json-viewer",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
