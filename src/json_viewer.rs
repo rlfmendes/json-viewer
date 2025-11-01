@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use serde_json::Value;
+use std::collections::HashSet;
+use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
-use std::fmt::Write as _;
 
 pub struct JsonViewer {
     pub content: Option<String>,
@@ -47,6 +48,121 @@ impl JsonViewer {
         self.parsed_json
             .as_ref()
             .map(|json| self.format_json_hierarchical_with_depth(json, 0, max_depth))
+    }
+
+    pub fn get_hierarchical_view_with_collapse(
+        &self,
+        collapsed_paths: &HashSet<String>,
+    ) -> Option<(String, Vec<String>)> {
+        self.parsed_json.as_ref().map(|json| {
+            let mut line_paths = Vec::new();
+            let content = self.format_json_with_collapse(json, "", 0, collapsed_paths, &mut line_paths);
+            (content, line_paths)
+        })
+    }
+
+    fn format_json_with_collapse(
+        &self,
+        value: &Value,
+        path: &str,
+        indent: usize,
+        collapsed_paths: &HashSet<String>,
+        line_paths: &mut Vec<String>,
+    ) -> String {
+        let indent_str = "  ".repeat(indent);
+
+        match value {
+            Value::Object(map) => {
+                let mut result = String::new();
+                for (key, val) in map {
+                    let key_path = if path.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{path}.{key}")
+                    };
+
+                    let _ = write!(result, "{indent_str}{key}: ");
+                    line_paths.push(key_path.clone());
+
+                    match val {
+                        Value::Object(_) | Value::Array(_) => {
+                            if collapsed_paths.contains(&key_path) {
+                                // Show collapsed indicator
+                                match val {
+                                    Value::Object(o) => {
+                                        let _ = writeln!(result, "{{...}}  // {} keys", o.len());
+                                    }
+                                    Value::Array(a) => {
+                                        let _ = writeln!(result, "[...]  // {} items", a.len());
+                                    }
+                                    _ => {}
+                                }
+                            } else {
+                                result.push('\n');
+                                result.push_str(&self.format_json_with_collapse(
+                                    val,
+                                    &key_path,
+                                    indent + 1,
+                                    collapsed_paths,
+                                    line_paths,
+                                ));
+                            }
+                        }
+                        _ => {
+                            let _ = writeln!(result, "{}", self.format_simple_value(val));
+                        }
+                    }
+                }
+                result
+            }
+            Value::Array(arr) => {
+                let mut result = String::new();
+                for (idx, val) in arr.iter().enumerate() {
+                    let idx_path = if path.is_empty() {
+                        format!("[{idx}]")
+                    } else {
+                        format!("{path}[{idx}]")
+                    };
+
+                    let _ = write!(result, "{indent_str}[{idx}]: ");
+                    line_paths.push(idx_path.clone());
+
+                    match val {
+                        Value::Object(_) | Value::Array(_) => {
+                            if collapsed_paths.contains(&idx_path) {
+                                // Show collapsed indicator
+                                match val {
+                                    Value::Object(o) => {
+                                        let _ = writeln!(result, "{{...}}  // {} keys", o.len());
+                                    }
+                                    Value::Array(a) => {
+                                        let _ = writeln!(result, "[...]  // {} items", a.len());
+                                    }
+                                    _ => {}
+                                }
+                            } else {
+                                result.push('\n');
+                                result.push_str(&self.format_json_with_collapse(
+                                    val,
+                                    &idx_path,
+                                    indent + 1,
+                                    collapsed_paths,
+                                    line_paths,
+                                ));
+                            }
+                        }
+                        _ => {
+                            let _ = writeln!(result, "{}", self.format_simple_value(val));
+                        }
+                    }
+                }
+                result
+            }
+            _ => {
+                line_paths.push(path.to_string());
+                format!("{indent_str}{}\n", self.format_simple_value(value))
+            }
+        }
     }
 
     fn format_json_hierarchical(&self, value: &Value, indent: usize) -> String {

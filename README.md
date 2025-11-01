@@ -8,11 +8,13 @@ A fast, terminal-based JSON file viewer with a character-based UI, built in Rust
 ## Features
 
 - 📁 **File Browser**: Navigate through JSON files in a directory using arrow keys
+  - 🔼 **Parent Directory Navigation**: Quick access to parent folders with ".." entry at top of list
+  - 🔄 **Auto-Refresh**: Automatically detects and displays new/removed files in real-time
 - 📄 **Dual View Modes**: 
   - Plain text view for raw JSON
   - Hierarchical tree view for structured browsing
 - 🔍 **Query Support**: Simple dot/bracket queries to navigate and extract JSON data
-- 📜 **Scrolling**: Scroll through long JSON files with arrow keys when JSON display is focused
+- 📜 **Scrolling & Cursor**: Navigate through long JSON files with a highlighted cursor line
 - 🔄 **Line Wrapping**: Toggle line wrapping on/off for better readability
 - ⚡ **Fast & Lightweight**: Built with Rust for maximum performance
 - 🖥️ **Cross-Platform**: Supports both x86_64 and ARM64 architectures
@@ -114,14 +116,19 @@ json-viewer /path/to/json/files
 
 #### Normal Mode
 - `Tab` / `Shift+Tab`: Cycle focus forward/backward between Query input, File list, and JSON display
-- `↑/↓`: Navigate through files (when file list is focused) OR scroll JSON content (when JSON display is focused)
-- `Enter`: Select and open a file (when file list is focused)
+- `↑/↓`: Navigate through files (when file list is focused) OR move cursor through JSON content (when JSON display is focused)
+- `Enter`: Select and open a file, or navigate to parent directory when ".." is selected (when file list is focused)
 - `←` or `Backspace`: Go to parent directory (when file list is focused)
 - `/`: Enter query mode
 - `v`: Toggle between plain text and hierarchical view
 - `w`: Toggle line wrapping in JSON display
-- `Space`: Collapse/expand child nodes in hierarchical view (global toggle)
+- `Space`: Collapse/expand the node at cursor in hierarchical view (works at any level)
 - `q` or `Ctrl+C`: Quit the application
+
+**File Browser Features:**
+- The top entry "📁 .." allows quick navigation to the parent directory
+- Files are automatically refreshed when new files are added or removed from the current directory
+- 📄 icons indicate individual files
 
 #### Query Mode
 - Type your query

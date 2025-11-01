@@ -6,7 +6,7 @@ mod json_viewer;
 use anyhow::Result;
 use clap::Parser;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, poll},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -60,9 +60,14 @@ fn main() -> Result<()> {
 
 fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> {
     loop {
+        // Check for file system changes
+        app.check_file_changes();
+        
         terminal.draw(|f| ui::draw(f, app))?;
 
-        if let Event::Key(key) = event::read()? {
+        // Poll for events with a timeout to allow file watching updates
+        if poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
             match app.input_mode {
                 app::InputMode::Normal => match key.code {
                     KeyCode::Char('q') => return Ok(()),
@@ -72,20 +77,48 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                     KeyCode::Up => {
                         match app.focused_area {
                             app::FocusedArea::FileList => app.file_browser.previous(),
-                            app::FocusedArea::JsonDisplay => app.scroll_up(),
+                            app::FocusedArea::JsonDisplay => {
+                                app.cursor_up();
+                            }
                             _ => {}
                         }
                     }
                     KeyCode::Down => {
                         match app.focused_area {
                             app::FocusedArea::FileList => app.file_browser.next(),
-                            app::FocusedArea::JsonDisplay => app.scroll_down(),
+                            app::FocusedArea::JsonDisplay => {
+                                // Calculate total lines from current content
+                                let content = if let Some(result) = &app.query_result {
+                                    result.clone()
+                                } else {
+                                    match app.view_mode {
+                                        app::ViewMode::PlainText => {
+                                            app.json_viewer.get_plain_text()
+                                                .unwrap_or("No file selected")
+                                                .to_string()
+                                        }
+                                        app::ViewMode::Hierarchical => {
+                                            app.json_viewer
+                                                .get_hierarchical_view_with_depth(app.fold_depth)
+                                                .unwrap_or_else(|| "No valid JSON file selected".to_string())
+                                        }
+                                    }
+                                };
+                                let total_lines = content.lines().count();
+                                let visible_height = terminal.size()?.height.saturating_sub(9) as usize;
+                                app.cursor_down(total_lines, visible_height);
+                            }
                             _ => {}
                         }
                     }
                     KeyCode::Enter => {
                         if let app::FocusedArea::FileList = app.focused_area {
-                            app.select_file()?;
+                            // Check if parent directory is selected
+                            if app.file_browser.is_parent_selected() {
+                                app.navigate_parent_dir()?;
+                            } else {
+                                app.select_file()?;
+                            }
                         }
                     }
                     KeyCode::Left | KeyCode::Backspace => {
@@ -119,6 +152,7 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                     }
                     _ => {}
                 },
+            }
             }
         }
     }
