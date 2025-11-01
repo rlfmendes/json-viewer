@@ -63,7 +63,7 @@ impl JsonViewer {
                             result.push_str(&self.format_json_hierarchical(val, indent + 1));
                         }
                         _ => {
-                            let _ = write!(result, "{}\n", self.format_simple_value(val));
+                            let _ = writeln!(result, "{}", self.format_simple_value(val));
                         }
                     }
                 }
@@ -79,7 +79,7 @@ impl JsonViewer {
                             result.push_str(&self.format_json_hierarchical(val, indent + 1));
                         }
                         _ => {
-                            let _ = write!(result, "{}\n", self.format_simple_value(val));
+                            let _ = writeln!(result, "{}", self.format_simple_value(val));
                         }
                     }
                 }
@@ -121,7 +121,7 @@ impl JsonViewer {
                             ));
                         }
                         _ => {
-                            let _ = write!(result, "{}\n", self.format_simple_value(val));
+                            let _ = writeln!(result, "{}", self.format_simple_value(val));
                         }
                     }
                 }
@@ -141,7 +141,7 @@ impl JsonViewer {
                             ));
                         }
                         _ => {
-                            let _ = write!(result, "{}\n", self.format_simple_value(val));
+                            let _ = writeln!(result, "{}", self.format_simple_value(val));
                         }
                     }
                 }
@@ -153,7 +153,7 @@ impl JsonViewer {
 
     fn format_simple_value(&self, value: &Value) -> String {
         match value {
-            Value::String(s) => format!("\"{}\"", s),
+            Value::String(s) => format!("\"{s}\""),
             Value::Number(n) => n.to_string(),
             Value::Bool(b) => b.to_string(),
             Value::Null => "null".to_string(),
