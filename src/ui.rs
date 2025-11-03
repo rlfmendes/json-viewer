@@ -128,6 +128,15 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
 
     items.extend(file_items);
 
+    // Calculate visible portion based on scroll offset
+    let visible_height = area.height.saturating_sub(2) as usize; // Subtract borders
+    let scroll_offset = app.file_browser.scroll_offset;
+    let visible_items: Vec<ListItem> = items
+        .into_iter()
+        .skip(scroll_offset)
+        .take(visible_height)
+        .collect();
+
     let title = if is_focused {
         "Files [FOCUSED] (↑↓: navigate, Enter: open/parent)"
     } else {
@@ -140,7 +149,7 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
         Style::default()
     };
 
-    let list = List::new(items)
+    let list = List::new(visible_items)
         .block(
             Block::default()
                 .borders(Borders::ALL)

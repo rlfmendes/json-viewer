@@ -13,6 +13,7 @@ pub struct FileBrowser {
     pub selected_index: usize,
     pub current_path: PathBuf,
     pub has_parent: bool,
+    pub scroll_offset: usize,
 }
 
 impl FileBrowser {
@@ -57,6 +58,7 @@ impl FileBrowser {
             selected_index: 0,
             current_path,
             has_parent,
+            scroll_offset: 0,
         })
     }
 
@@ -83,6 +85,15 @@ impl FileBrowser {
             } else {
                 self.selected_index = count - 1;
             }
+        }
+    }
+
+    pub fn ensure_visible(&mut self, visible_height: usize) {
+        // Ensure the selected item is visible within the scroll window
+        if self.selected_index < self.scroll_offset {
+            self.scroll_offset = self.selected_index;
+        } else if self.selected_index >= self.scroll_offset + visible_height {
+            self.scroll_offset = self.selected_index.saturating_sub(visible_height - 1);
         }
     }
 

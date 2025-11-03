@@ -72,7 +72,12 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                             return Ok(())
                         }
                         KeyCode::Up => match app.focused_area {
-                            app::FocusedArea::FileList => app.file_browser.previous(),
+                            app::FocusedArea::FileList => {
+                                app.file_browser.previous();
+                                // Calculate visible height for file browser (30% of screen width, minus borders)
+                                let visible_height = terminal.size()?.height.saturating_sub(8) as usize;
+                                app.file_browser.ensure_visible(visible_height);
+                            }
                             app::FocusedArea::JsonDisplay => {
                                 app.cursor_up();
                             }
@@ -80,7 +85,12 @@ fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, app: &mut A
                         },
                         KeyCode::Down => {
                             match app.focused_area {
-                                app::FocusedArea::FileList => app.file_browser.next(),
+                                app::FocusedArea::FileList => {
+                                    app.file_browser.next();
+                                    // Calculate visible height for file browser
+                                    let visible_height = terminal.size()?.height.saturating_sub(8) as usize;
+                                    app.file_browser.ensure_visible(visible_height);
+                                }
                                 app::FocusedArea::JsonDisplay => {
                                     // Calculate total lines from current content
                                     let content = if let Some(result) = &app.query_result {
