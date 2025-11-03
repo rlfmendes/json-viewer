@@ -1,5 +1,8 @@
+use crate::data_source::DataSource;
 use crate::file_browser::FileBrowser;
+use crate::filesystem_source::FilesystemSource;
 use crate::json_viewer::JsonViewer;
+use crate::mqtt_source::MqttSource;
 use anyhow::Result;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashSet;
@@ -22,8 +25,14 @@ pub enum FocusedArea {
     JsonDisplay,
 }
 
+pub enum DataSourceMode {
+    Filesystem,
+    Mqtt,
+}
+
 pub struct App {
-    pub file_browser: FileBrowser,
+    pub data_source: Box<dyn DataSource>,
+    pub file_browser: FileBrowser, // Keep for backward compatibility temporarily
     pub json_viewer: JsonViewer,
     pub input_mode: InputMode,
     pub view_mode: ViewMode,
@@ -40,6 +49,7 @@ pub struct App {
     pub watcher: Option<RecommendedWatcher>,
     pub watcher_rx: Option<Receiver<Result<Event, notify::Error>>>,
     pub files_changed: bool,
+    pub source_mode: DataSourceMode,
 }
 
 impl App {
@@ -48,6 +58,7 @@ impl App {
         let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
 
         let file_browser = FileBrowser::new(&canonical_path)?;
+        let data_source: Box<dyn DataSource> = Box::new(FilesystemSource::new(&canonical_path)?);
         let json_viewer = JsonViewer::new();
 
         // Setup file watcher
@@ -60,6 +71,7 @@ impl App {
         watcher.watch(&canonical_path, RecursiveMode::Recursive)?;
 
         Ok(Self {
+            data_source,
             file_browser,
             json_viewer,
             input_mode: InputMode::Normal,
@@ -77,56 +89,123 @@ impl App {
             watcher: Some(watcher),
             watcher_rx: Some(rx),
             files_changed: false,
+            source_mode: DataSourceMode::Filesystem,
+        })
+    }
+
+    pub fn new_mqtt(
+        broker_url: String,
+        topic: String,
+        username: Option<String>,
+        password: Option<String>,
+        client_id: Option<String>,
+        max_messages: usize,
+    ) -> Result<Self> {
+        let mqtt_source = MqttSource::new(
+            &broker_url,
+            &topic,
+            username,
+            password,
+            client_id,
+            max_messages,
+        )?;
+
+        let data_source: Box<dyn DataSource> = Box::new(mqtt_source);
+        let json_viewer = JsonViewer::new();
+
+        // Create a dummy file browser for compatibility
+        let file_browser = FileBrowser::new(&PathBuf::from("."))?;
+
+        Ok(Self {
+            data_source,
+            file_browser,
+            json_viewer,
+            input_mode: InputMode::Normal,
+            view_mode: ViewMode::Hierarchical,
+            focused_area: FocusedArea::FileList,
+            query_input: String::new(),
+            query_result: None,
+            root_path: PathBuf::from(&broker_url),
+            scroll_offset: 0,
+            wrap_lines: true,
+            fold_depth: None,
+            cursor_line: 0,
+            collapsed_paths: HashSet::new(),
+            line_to_path: Vec::new(),
+            watcher: None,
+            watcher_rx: None,
+            files_changed: false,
+            source_mode: DataSourceMode::Mqtt,
         })
     }
 
     pub fn check_file_changes(&mut self) {
-        if let Some(rx) = &self.watcher_rx {
-            // Check for file system events (non-blocking)
-            while let Ok(result) = rx.try_recv() {
-                if let Ok(event) = result {
-                    // Check if the event involves .json or .txt files
-                    let is_relevant = event.paths.iter().any(|p| {
-                        if let Some(ext) = p.extension() {
-                            ext == "json" || ext == "txt"
-                        } else {
-                            false
-                        }
-                    });
+        match self.source_mode {
+            DataSourceMode::Filesystem => {
+                if let Some(rx) = &self.watcher_rx {
+                    // Check for file system events (non-blocking)
+                    while let Ok(result) = rx.try_recv() {
+                        if let Ok(event) = result {
+                            // Check if the event involves .json or .txt files
+                            let is_relevant = event.paths.iter().any(|p| {
+                                if let Some(ext) = p.extension() {
+                                    ext == "json" || ext == "txt"
+                                } else {
+                                    false
+                                }
+                            });
 
-                    if is_relevant {
-                        self.files_changed = true;
+                            if is_relevant {
+                                self.files_changed = true;
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        // Refresh file list if changes detected
-        if self.files_changed {
-            let _ = self.file_browser.refresh();
-            self.files_changed = false;
+                // Refresh file list if changes detected
+                if self.files_changed {
+                    let _ = self.data_source.refresh();
+                    let _ = self.file_browser.refresh();
+                    self.files_changed = false;
+                }
+            }
+            DataSourceMode::Mqtt => {
+                // Check for MQTT message updates
+                if let Some(mqtt_source) = self.data_source.as_any_mut().downcast_mut::<MqttSource>() {
+                    mqtt_source.check_updates();
+                }
+            }
         }
     }
 
     pub fn select_file(&mut self) -> Result<()> {
-        if let Some(file_path) = self.file_browser.get_selected_file() {
-            self.json_viewer.load_file(file_path)?;
-            self.query_result = None;
-            self.scroll_offset = 0; // Reset scroll when opening new file
-            self.cursor_line = 0; // Reset cursor when opening new file
+        // Try to get file path from data source (filesystem specific)
+        if let Some(file_path) = self.data_source.get_file_path() {
+            self.json_viewer.load_file(&file_path)?;
+        } else {
+            // For non-filesystem sources, get content directly
+            if let Some(entry) = self.data_source.get_selected_entry() {
+                let content = self.data_source.get_content(&entry.id)?;
+                self.json_viewer.load_content(&content, &entry.display_name)?;
+            }
         }
+        self.query_result = None;
+        self.scroll_offset = 0; // Reset scroll when opening new file
+        self.cursor_line = 0; // Reset cursor when opening new file
         Ok(())
     }
 
     pub fn navigate_into_directory(&mut self) -> Result<()> {
-        if let Some(dir_path) = self.file_browser.get_selected_directory() {
-            self.root_path = dir_path.clone();
-            self.file_browser = FileBrowser::new(&self.root_path)?;
+        if self.data_source.supports_navigation() {
+            self.data_source.navigate_into()?;
             self.json_viewer.current_file = None;
             self.query_result = None;
             self.scroll_offset = 0;
-
-            // Update watcher for new directory
+            
+            // Update root path for filesystem sources
+            self.root_path = PathBuf::from(self.data_source.get_location());
+            
+            // Update watcher for new directory (filesystem only)
             if let Some(watcher) = &mut self.watcher {
                 let _ = watcher.watch(&self.root_path, notify::RecursiveMode::Recursive);
             }
@@ -217,14 +296,16 @@ impl App {
     }
 
     pub fn navigate_parent_dir(&mut self) -> Result<()> {
-        if let Some(parent) = self.root_path.parent() {
-            self.root_path = parent.to_path_buf();
-            self.file_browser = FileBrowser::new(&self.root_path)?;
+        if self.data_source.supports_navigation() && self.data_source.has_parent() {
+            self.data_source.navigate_parent()?;
             self.json_viewer.current_file = None;
             self.query_result = None;
             self.scroll_offset = 0;
 
-            // Update watcher for new directory
+            // Update root path for filesystem sources
+            self.root_path = PathBuf::from(self.data_source.get_location());
+
+            // Update watcher for new directory (filesystem only)
             if let Some(watcher) = &mut self.watcher {
                 let _ = watcher.watch(&self.root_path, notify::RecursiveMode::Recursive);
             }

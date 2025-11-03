@@ -33,6 +33,18 @@ impl JsonViewer {
         Ok(())
     }
 
+    pub fn load_content(&mut self, content: &str, name: &str) -> Result<()> {
+        // Try to parse as JSON
+        let parsed = serde_json::from_str(content).ok();
+
+        self.content = Some(content.to_string());
+        self.parsed_json = parsed;
+        // Store the name as a pseudo-path
+        self.current_file = Some(PathBuf::from(name));
+
+        Ok(())
+    }
+
     pub fn get_plain_text(&self) -> Option<&str> {
         self.content.as_deref()
     }

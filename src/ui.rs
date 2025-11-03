@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::app::{App, FocusedArea, InputMode, ViewMode};
+use crate::data_source::DataSource;
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -79,68 +80,53 @@ fn draw_query_box(f: &mut Frame, app: &App, area: Rect) {
 fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
     let is_focused = matches!(app.focused_area, FocusedArea::FileList);
 
-    let mut items: Vec<ListItem> = Vec::new();
-
-    // Add parent directory entry if available
-    if app.file_browser.has_parent {
-        let style = if app.file_browser.selected_index == 0 {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::Cyan)
-        };
-        items.push(ListItem::new("[D] ..").style(style));
-    }
-
-    // Add directory and file entries
-    use crate::file_browser::FileEntry;
-    let file_items: Vec<ListItem> = app
-        .file_browser
-        .entries
+    // Get entries from data source
+    let entries = app.data_source.get_entries();
+    let selected_idx = app.data_source.selected_index();
+    
+    let items: Vec<ListItem> = entries
         .iter()
         .enumerate()
         .map(|(idx, entry)| {
-            let actual_idx = if app.file_browser.has_parent {
-                idx + 1
-            } else {
-                idx
-            };
-            let (prefix, path) = match entry {
-                FileEntry::Directory(path) => ("[D]", path),
-                FileEntry::File(path) => ("[-]", path),
-            };
-            let name = format!(
-                "{} {}",
-                prefix,
-                app.file_browser.get_display_name(path.as_path())
-            );
-            let style = if actual_idx == app.file_browser.selected_index {
+            let style = if idx == selected_idx {
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD)
+            } else if entry.is_navigable {
+                Style::default().fg(Color::Cyan)
             } else {
                 Style::default()
             };
-            ListItem::new(name).style(style)
+            
+            let display = if let Some(metadata) = &entry.metadata {
+                format!("{} ({})", entry.display_name, metadata)
+            } else {
+                entry.display_name.clone()
+            };
+            
+            ListItem::new(display).style(style)
         })
         .collect();
 
-    items.extend(file_items);
-
     // Calculate visible portion based on scroll offset
     let visible_height = area.height.saturating_sub(2) as usize; // Subtract borders
-    let scroll_offset = app.file_browser.scroll_offset;
+    let scroll_offset = app.data_source.scroll_offset();
     let visible_items: Vec<ListItem> = items
         .into_iter()
         .skip(scroll_offset)
         .take(visible_height)
         .collect();
 
-    let title = if is_focused {
-        "Files [FOCUSED] (↑↓: navigate, Enter: open/parent)"
+    let nav_hint = if app.data_source.supports_navigation() {
+        "(↑↓: navigate, Enter: open/parent)"
     } else {
-        "Files (Tab to focus)"
+        "(↑↓: navigate, Enter: select)"
+    };
+
+    let title = if is_focused {
+        format!("Files [FOCUSED] {}", nav_hint)
+    } else {
+        "Files (Tab to focus)".to_string()
     };
 
     let border_style = if is_focused {
@@ -270,22 +256,49 @@ fn draw_json_viewer(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
-    let current_file = app
-        .json_viewer
-        .current_file
-        .as_ref()
-        .and_then(|p| p.to_str())
-        .unwrap_or("No file selected");
+    use crate::app::DataSourceMode;
+    use crate::mqtt_source::MqttSource;
+
+    let location_info = match app.source_mode {
+        DataSourceMode::Filesystem => {
+            let current_file = app
+                .json_viewer
+                .current_file
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .unwrap_or("No file selected");
+            format!("File: {}", current_file)
+        }
+        DataSourceMode::Mqtt => {
+            // Try to get MQTT-specific status
+            let base_location = app.data_source.get_location();
+            let status = if let Some(mqtt_source) = unsafe {
+                // Safe because we know it's MqttSource in Mqtt mode
+                (app.data_source.as_ref() as *const dyn DataSource as *const MqttSource).as_ref()
+            } {
+                mqtt_source.connection_status.clone()
+            } else {
+                base_location
+            };
+            status
+        }
+    };
 
     let help_text = match app.input_mode {
-        InputMode::Normal => "q: quit | Tab/Shift+Tab: focus | /: query | v: view | w: wrap | Space: collapse | ←/Backspace: parent",
+        InputMode::Normal => {
+            if app.data_source.supports_navigation() {
+                "q: quit | Tab/Shift+Tab: focus | /: query | v: view | w: wrap | Space: collapse | ←/Backspace: parent"
+            } else {
+                "q: quit | Tab/Shift+Tab: focus | /: query | v: view | w: wrap | Space: collapse"
+            }
+        }
         InputMode::Query => "Enter: execute query | Esc: cancel",
     };
 
     let status = vec![
         Line::from(vec![
-            Span::styled("File: ", Style::default().fg(Color::Cyan)),
-            Span::raw(current_file),
+            Span::styled("Status: ", Style::default().fg(Color::Cyan)),
+            Span::raw(location_info),
         ]),
         Line::from(help_text),
     ];
@@ -295,3 +308,4 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_widget(paragraph, area);
 }
+
