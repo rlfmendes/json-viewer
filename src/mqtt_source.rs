@@ -2,7 +2,6 @@ use crate::data_source::{DataEntry, DataSource};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use rumqttc::{Client, Event, MqttOptions, Packet, QoS};
-use std::any::Any;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -20,17 +19,25 @@ pub struct MqttMessage {
     pub qos: QoS,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct MqttConnState {
+    status: String,
+    retry_count: usize,
+    last_error: Option<DateTime<Local>>,
+}
+
 pub struct MqttSource {
     messages: Arc<Mutex<VecDeque<MqttMessage>>>,
     data_entries: Vec<DataEntry>,
     selected_index: usize,
     scroll_offset: usize,
+    #[allow(dead_code)] // Used in mqtt_event_loop for truncating the message queue
     max_messages: usize,
     broker_url: String,
     topic: String,
     _client: Client,
     update_rx: Receiver<()>,
-    pub connection_status: String,
+    pub connection_status: Arc<Mutex<MqttConnState>>,
 }
 
 impl MqttSource {
@@ -45,7 +52,7 @@ impl MqttSource {
         // Parse broker URL
         let url = broker_url.trim_start_matches("mqtt://");
         let parts: Vec<&str> = url.split(':').collect();
-        let host = parts.get(0).ok_or_else(|| anyhow!("Invalid broker URL"))?;
+        let host = parts.first().ok_or_else(|| anyhow!("Invalid broker URL"))?;
         let port: u16 = if parts.len() > 1 {
             parts[1].parse().unwrap_or(1883)
         } else {
@@ -64,7 +71,7 @@ impl MqttSource {
         }
 
         // Create MQTT client and connection
-        let (client, mut connection) = Client::new(mqttoptions, 10);
+        let (client, connection) = Client::new(mqttoptions, 10);
 
         // Subscribe to topic
         client.subscribe(topic, QoS::AtMostOnce)?;
@@ -78,8 +85,21 @@ impl MqttSource {
 
         // Spawn thread to handle MQTT events
         let topic_clone = topic.to_string();
+        let status_arc: Arc<Mutex<MqttConnState>> = Arc::new(Mutex::new(MqttConnState {
+            status: "Connecting...".to_string(),
+            retry_count: 0,
+            last_error: None,
+        }));
+        let status_thread = Arc::clone(&status_arc);
         thread::spawn(move || {
-            Self::mqtt_event_loop(connection, messages_clone, update_tx, topic_clone, max_messages);
+            Self::mqtt_event_loop(
+                connection,
+                messages_clone,
+                update_tx,
+                topic_clone,
+                max_messages,
+                status_thread,
+            );
         });
 
         Ok(Self {
@@ -92,7 +112,7 @@ impl MqttSource {
             topic: topic.to_string(),
             _client: client,
             update_rx,
-            connection_status: "Connecting...".to_string(),
+            connection_status: status_arc,
         })
     }
 
@@ -102,7 +122,13 @@ impl MqttSource {
         update_tx: Sender<()>,
         topic: String,
         max_messages: usize,
+        status: Arc<Mutex<MqttConnState>>,
     ) {
+        // Indicate that we are connected once the loop starts consuming
+        if let Ok(mut st) = status.lock() {
+            st.status = "Connected".to_string();
+        }
+
         loop {
             match connection.iter().next() {
                 Some(Ok(Event::Incoming(Packet::Publish(publish)))) => {
@@ -134,7 +160,11 @@ impl MqttSource {
                 }
                 Some(Ok(_)) => {}
                 Some(Err(e)) => {
-                    eprintln!("MQTT connection error: {}", e);
+                    if let Ok(mut st) = status.lock() {
+                        st.status = format!("Disconnected ({e}), retrying...");
+                        st.retry_count = st.retry_count.saturating_add(1);
+                        st.last_error = Some(Local::now());
+                    }
                     thread::sleep(Duration::from_secs(5));
                 }
                 None => break,
@@ -188,7 +218,7 @@ impl MqttSource {
                         id: msg.id.clone(),
                         display_name: format!("[{}] {} - {}", time_str, msg.topic, preview),
                         is_navigable: false,
-                        metadata: None,
+                        metadata: Some(format!("QoS {:?}", msg.qos)),
                     }
                 })
                 .collect();
@@ -199,14 +229,10 @@ impl MqttSource {
         // Non-blocking check for updates
         while self.update_rx.try_recv().is_ok() {
             self.update_entries();
-            self.connection_status = format!(
-                "Connected | Topic: {} | Messages: {}",
-                self.topic,
-                self.data_entries.len()
-            );
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_message_count(&self) -> usize {
         if let Ok(msgs) = self.messages.lock() {
             msgs.len()
@@ -289,6 +315,11 @@ impl DataSource for MqttSource {
     }
 
     fn refresh(&mut self) -> Result<()> {
+        // Drain any pending update notifications
+        while self.update_rx.try_recv().is_ok() {
+            // just drain
+        }
+        // Rebuild entries from current messages snapshot
         self.update_entries();
         Ok(())
     }
@@ -301,7 +332,31 @@ impl DataSource for MqttSource {
         None // MQTT doesn't have file paths
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn needs_periodic_refresh(&self) -> bool {
+        true
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn status_text(&self) -> Option<String> {
+        let count = if let Ok(msgs) = self.messages.lock() { msgs.len() } else { 0 };
+        let (status, retries, last_err) = if let Ok(st) = self.connection_status.lock() {
+            (
+                st.status.clone(),
+                st.retry_count,
+                st.last_error.map(|t| t.format("%H:%M:%S").to_string()),
+            )
+        } else {
+            ("Unknown".to_string(), 0, None)
+        };
+        let last_err_str = last_err
+            .map(|s| format!(" | Last error: {s}"))
+            .unwrap_or_default();
+        Some(format!(
+            "{} | Broker: {} | Topic: {} | Messages: {} | Retries: {}{}",
+            status, self.broker_url, self.topic, count, retries, last_err_str
+        ))
     }
 }

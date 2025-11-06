@@ -30,6 +30,21 @@ make run
 cargo run -- examples/
 ```
 
+#### Quick Test with MQTT (Live Messages)
+
+```bash
+# Run in MQTT mode (public broker example)
+cargo run -- --mqtt mqtt://test.mosquitto.org:1883 --mqtt-topic sensors/#
+
+# Or your own broker and topic
+cargo run -- --mqtt mqtt://localhost:1883 --mqtt-topic devices/+/telemetry
+```
+
+What to expect in MQTT mode:
+- Left pane lists incoming messages as rows (newest first)
+- Press Enter on a row to open the message in the JSON viewer
+- Status bar shows connection state, message count, retries, and last error time
+
 #### What to Try
 
 1. **Navigate Files**:
@@ -39,15 +54,21 @@ cargo run -- examples/
 2. **View JSON**:
    - Press `Enter` to select a file
    - Right panel shows the JSON content
-   - Press `Tab` to toggle between plain text and hierarchical view
+  - Press `v` to toggle between plain text and hierarchical view
+  - Press `w` to toggle line wrapping
+  - Press `Space` to collapse/expand the current node (hierarchical view)
 
 3. **Run Queries**:
    - Press `/` to enter query mode
   - Type: `[0].name` and press `Enter`
    - Should show: "John Doe" from the first entry
+  - Note: Queries work the same on opened MQTT messages
 
 4. **Exit**:
    - Press `q` or `Ctrl+C` to quit
+
+5. **Focus**:
+  - Press `Tab` / `Shift+Tab` to cycle focus between Query, Files, and JSON panes
 
 ## Testing with Your Own Data
 
@@ -174,7 +195,7 @@ chmod +x build.sh && ./build.sh
 ```bash
 make clippy
 # or
-cargo clippy
+cargo clippy -- -D warnings
 
 # Should pass without warnings
 ```
@@ -194,7 +215,10 @@ cargo fmt --check
 - [ ] Enter key opens selected file
 - [ ] Plain text view shows raw JSON
 - [ ] Hierarchical view shows formatted JSON tree
-- [ ] Tab key toggles between views
+- [ ] Tab/Shift+Tab cycles focus across panes
+- [ ] 'v' toggles between views (plain/hierarchical)
+- [ ] 'w' toggles line wrapping
+- [ ] 'Space' collapses/expands nodes in hierarchical view
 - [ ] `/` key activates query input
 - [ ] Query executes on Enter
 - [ ] Esc exits query mode
@@ -203,6 +227,18 @@ cargo fmt --check
 - [ ] Works with nested JSON structures
 - [ ] Works with array JSON structures
 - [ ] Handles invalid JSON gracefully
+- [ ] File list scrolls when many entries (selection stays visible)
+
+### MQTT Mode Checklist
+
+- [ ] App starts in MQTT mode with provided broker and topic
+- [ ] Status bar shows connection state, broker, topic, Messages: N
+- [ ] Messages appear in the left pane as new publishes arrive
+- [ ] Enter opens the selected message in the viewer
+- [ ] Directory navigation is disabled (no parent/back navigation)
+- [ ] Non-JSON payloads open as plain text; hierarchical view indicates invalid JSON
+- [ ] Non-UTF8 payloads are ignored (do not crash)
+- [ ] Status bar increments retries and shows last error when connection issues occur
 
 ## Performance Testing
 
@@ -263,6 +299,43 @@ ls -la examples/
 # The query box should turn yellow when active
 ```
 
+### MQTT: No Messages
+
+```bash
+# Try a wildcard topic to broaden matches
+cargo run -- --mqtt mqtt://localhost:1883 --mqtt-topic '#'
+
+# If auth is required
+cargo run -- --mqtt mqtt://broker:1883 --mqtt-topic sensors/# --mqtt-user USER --mqtt-pass PASS
+```
+
+Tips:
+- Verify the broker host/port are correct and reachable
+- Publish a test message to your topic and confirm it appears
+- Status bar shows retries and last error; use this to diagnose
+
+#### Quick Ways to Publish Test Messages
+
+Using mosquitto_pub (if available):
+```bash
+mosquitto_pub -h test.mosquitto.org -p 1883 -t sensors/temp -m '{"temp":22, "unit":"C"}'
+```
+
+Using Python (paho-mqtt):
+```bash
+python3 - << 'PY'
+import json, time
+import paho.mqtt.client as mqtt
+c = mqtt.Client()
+c.connect('test.mosquitto.org', 1883, 60)
+for i in range(3):
+  payload = json.dumps({"seq": i, "ok": True})
+  c.publish('sensors/demo', payload)
+  time.sleep(0.5)
+c.disconnect()
+PY
+```
+
 ## Automated Testing (Future)
 
 To add unit tests, create test modules in the source files:
@@ -298,5 +371,5 @@ cargo test
 
 - Check logs: `RUST_BACKTRACE=1 cargo run -- examples/`
 - Review error messages in the terminal
-- See QUICKSTART.md for basic usage
-- See README.md for full documentation
+- See QUICKSTART.md for basic usage (filesystem and MQTT)
+- See README.md for full documentation and CLI flags

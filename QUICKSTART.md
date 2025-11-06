@@ -30,19 +30,25 @@
 Once inside the container:
 
 ```bash
-# Run with example data
+# Filesystem mode — browse a directory of JSON files
 cargo run -- examples/
 
 # Or specify a different directory
 cargo run -- /path/to/your/json/files
+
+# MQTT mode — subscribe to a topic and view messages as files
+cargo run -- --mqtt mqtt://test.mosquitto.org:1883 --mqtt-topic sensors/#
 ```
 
 ### Keyboard Controls
 
-- `↑/↓`: Navigate files
-- `Enter`: Open selected file
+- `↑/↓`: Navigate files/messages (left) or move cursor in JSON view (right)
+- `Enter`: Open selected file/message; Enter on a directory navigates into it (filesystem mode)
+- `←` or `Backspace`: Navigate to parent directory (filesystem mode)
 - `/`: Enter query mode
-- `Tab`: Toggle between plain text and hierarchical view
+- `v`: Toggle between plain text and hierarchical view
+- `w`: Toggle line wrapping
+- `Space`: Collapse/expand node at cursor (hierarchical view)
 - `Esc`: Exit query mode
 - `q` or `Ctrl+C`: Quit
 
@@ -75,7 +81,7 @@ cargo build --release
 cargo test
 
 # Check code quality
-cargo clippy
+cargo clippy -- -D warnings
 ```
 
 ### Creating .deb Package
@@ -119,9 +125,17 @@ chmod +x build.sh build-cross.sh
 - Use VS Code's integrated terminal (not the debug console)
 - Make sure you're running in interactive mode
 
+### MQTT: No messages appear
+
+- Verify the broker is reachable and URL is correct: `mqtt://host:port`
+- Try a broad topic first to validate: `--mqtt-topic #`
+- If your broker requires auth, pass `--mqtt-user` and `--mqtt-pass`
+- The status bar shows connection state, retry count, and last error time
+- Non-UTF8 payloads are ignored; non-JSON opens as plain text
+
 ## Need Help?
 
-Check the main README.md for detailed documentation or:
+Check the main README.md for detailed documentation, including the new MQTT mode, or:
 - Review `.devcontainer/README.md` for container details
 - Look at the example JSON files in `examples/`
  

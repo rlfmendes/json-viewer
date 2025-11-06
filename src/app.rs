@@ -176,6 +176,10 @@ impl App {
                 }
             }
         }
+        // Allow streaming data sources (e.g., MQTT) to update periodically
+        if self.data_source.needs_periodic_refresh() {
+            let _ = self.data_source.refresh();
+        }
     }
 
     pub fn select_file(&mut self) -> Result<()> {

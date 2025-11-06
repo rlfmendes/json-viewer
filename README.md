@@ -1,24 +1,29 @@
 # JSON Viewer
 
-A fast, terminal-based JSON file viewer with a character-based UI, built in Rust.
+A fast, terminal-based JSON viewer with a TUI, now supporting both filesystem browsing and live MQTT streams.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
 
 ## Features
 
-- 📁 **File Browser**: Navigate through JSON files in a directory using arrow keys
-  - 🔼 **Parent Directory Navigation**: Quick access to parent folders with ".." entry at top of list
-  - 🔄 **Auto-Refresh**: Automatically detects and displays new/removed files in real-time
-- 📄 **Dual View Modes**: 
-  - Plain text view for raw JSON
-  - Hierarchical tree view for structured browsing
+- 📁 **Filesystem Browser**: Navigate JSON files in a directory using arrow keys
+   - 🔼 Parent navigation via a ".." entry
+   - 🔄 Auto-refresh when files are added/removed (watches .json and .txt)
+- � **MQTT Mode (New)**: Subscribe to a topic and treat each incoming message as a "virtual file"
+   - Live updates while connected; configurable max in-memory messages
+   - Wildcard topics supported (e.g., sensors/# or +/temperature)
+   - Optional username/password and custom client ID
+   - Status bar shows connection state, retries, and last error time
+- 📄 **Dual View Modes**:
+   - Plain text view for raw JSON
+   - Hierarchical tree view with collapse/expand via Space
 - 🔍 **Query Support**: Simple dot/bracket queries to navigate and extract JSON data
-- 📜 **Scrolling & Cursor**: Navigate through long JSON files with a highlighted cursor line
-- 🔄 **Line Wrapping**: Toggle line wrapping on/off for better readability
-- ⚡ **Fast & Lightweight**: Built with Rust for maximum performance
-- 🖥️ **Cross-Platform**: Supports both x86_64 and ARM64 architectures
-- 📦 **Easy Installation**: Install via `.deb` package or build from source
+- 📜 **Scrolling & Cursor**: Highlighted cursor line; auto-scroll
+- 🔄 **Line Wrapping**: Toggle wrapping on/off for readability
+- ⚡ **Fast & Lightweight**: Native Rust performance
+- 🖥️ **Cross-Platform**: x86_64 and ARM64
+- 📦 **Easy Installation**: Install via `.deb` or build from source
 
 ## Getting Started
 
@@ -42,8 +47,11 @@ The easiest way to develop and test this project is using the provided DevContai
 
 3. **Build and Run**:
    ```bash
-   # Inside the container
+   # Filesystem mode (browse a directory)
    cargo run -- examples/
+
+   # MQTT mode (subscribe and view messages)
+   cargo run -- --mqtt mqtt://test.mosquitto.org:1883 --mqtt-topic sensors/#
    ```
 
 The DevContainer includes:
@@ -76,7 +84,7 @@ sudo apt-get install -f ./json-viewer_0.1.0_arm64.deb
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/json-viewer.git
+git clone https://github.com/rlfmendes/json-viewer.git
 cd json-viewer
 
 # Build the project
@@ -102,7 +110,7 @@ sudo dpkg -i target/json-viewer_0.1.0_*.deb
 
 ## Usage
 
-### Basic Usage
+### Filesystem mode
 
 ```bash
 # Open current directory
@@ -112,13 +120,33 @@ json-viewer
 json-viewer /path/to/json/files
 ```
 
+### MQTT mode
+
+```bash
+# Minimum: broker + topic
+json-viewer --mqtt mqtt://localhost:1883 --mqtt-topic sensors/#
+
+# With auth and custom client ID
+json-viewer \
+   --mqtt mqtt://broker.example.com:1883 \
+   --mqtt-topic devices/+/telemetry \
+   --mqtt-user myuser \
+   --mqtt-pass mypass \
+   --mqtt-client-id json-viewer-dev \
+   --max-messages 2000
+```
+
+Notes:
+- In MQTT mode, each received message appears in the left pane as a row. Press Enter to open it in the viewer.
+- Directory navigation (Enter/Backspace on folders) is disabled in MQTT mode.
+
 ### Keyboard Controls
 
 #### Normal Mode
 - `Tab` / `Shift+Tab`: Cycle focus forward/backward between Query input, File list, and JSON display
 - `↑/↓`: Navigate through files (when file list is focused) OR move cursor through JSON content (when JSON display is focused)
-- `Enter`: Select and open a file, or navigate to parent directory when ".." is selected (when file list is focused)
-- `←` or `Backspace`: Go to parent directory (when file list is focused)
+- `Enter`: Open selected file; in filesystem mode, Enter on a directory navigates into it; in MQTT mode, it opens the selected message
+- `←` or `Backspace`: Go to parent directory (filesystem mode only)
 - `/`: Enter query mode
 - `v`: Toggle between plain text and hierarchical view
 - `w`: Toggle line wrapping in JSON display
@@ -128,6 +156,7 @@ json-viewer /path/to/json/files
 **File Browser Features:**
 - The top entry "📁 .." allows quick navigation to the parent directory
 - Files are automatically refreshed when new files are added or removed from the current directory
+- In MQTT mode, the list auto-updates as messages arrive; navigation to directories is disabled
 - 📄 icons indicate individual files
 
 #### Query Mode
@@ -186,11 +215,14 @@ chmod +x build-cross.sh
 ```
 json-viewer/
 ├── src/
-│   ├── main.rs           # Entry point and CLI handling
-│   ├── app.rs            # Application state management
-│   ├── file_browser.rs   # File browsing logic
-│   ├── json_viewer.rs    # JSON parsing and viewing
-│   └── ui.rs             # Terminal UI rendering
+│   ├── main.rs              # Entry point and CLI handling
+│   ├── app.rs               # Application state management
+│   ├── data_source.rs       # DataSource trait abstraction
+│   ├── filesystem_source.rs # Filesystem implementation of DataSource
+│   ├── mqtt_source.rs       # MQTT implementation of DataSource
+│   ├── file_browser.rs      # Legacy helper (kept for compatibility)
+│   ├── json_viewer.rs       # JSON parsing and viewing
+│   └── ui.rs                # Terminal UI rendering
 ├── debian/               # Debian package configuration
 │   ├── control
 │   ├── changelog
@@ -205,9 +237,28 @@ json-viewer/
 - **ratatui**: Terminal UI framework
 - **crossterm**: Cross-platform terminal manipulation
 - **serde/serde_json**: JSON serialization and parsing
- 
 - **clap**: Command-line argument parsing
 - **walkdir**: Directory traversal
+- **notify**: Filesystem watching for auto-refresh
+- **rumqttc**: MQTT client
+- **uuid**: Unique IDs for messages
+- **chrono**: Timestamps and formatting
+
+### CLI Reference
+
+```
+json-viewer [PATH]
+
+Options:
+   --mqtt <url>             MQTT broker URL (e.g., mqtt://localhost:1883)
+   --mqtt-topic <topic>     Topic to subscribe to (supports + and #)
+   --mqtt-user <user>       Username for MQTT auth
+   --mqtt-pass <pass>       Password for MQTT auth
+   --mqtt-client-id <id>    Custom client ID (auto-generated if omitted)
+   --max-messages <n>       Max messages kept in memory (default: 1000)
+```
+
+When --mqtt is provided, PATH is ignored and the app runs in MQTT mode.
 
 ## Contributing
 
@@ -245,6 +296,14 @@ For cross-compilation, you may also need the appropriate linker:
 # For ARM64 on x86_64 systems
 sudo apt-get install gcc-aarch64-linux-gnu
 ```
+
+### MQTT: connection or no messages
+
+- Ensure the broker URL is reachable (host/port) and correct (mqtt://host:port)
+- Verify the topic matches published messages; try a wildcard like `#` to test
+- If using auth, confirm username/password and permissions
+- The status bar shows: `Connected | Broker: ... | Topic: ... | Messages: N | Retries: X | Last error: HH:MM:SS`
+- Non-UTF8 payloads are ignored; non-JSON payloads will open as plain text but hierarchical view may show "No valid JSON file selected"
 
 ## Acknowledgments
 

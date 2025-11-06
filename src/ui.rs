@@ -7,7 +7,6 @@ use ratatui::{
 };
 
 use crate::app::{App, FocusedArea, InputMode, ViewMode};
-use crate::data_source::DataSource;
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -124,7 +123,7 @@ fn draw_file_browser(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let title = if is_focused {
-        format!("Files [FOCUSED] {}", nav_hint)
+        format!("Files [FOCUSED] {nav_hint}")
     } else {
         "Files (Tab to focus)".to_string()
     };
@@ -256,32 +255,18 @@ fn draw_json_viewer(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
-    use crate::app::DataSourceMode;
-    use crate::mqtt_source::MqttSource;
-
-    let location_info = match app.source_mode {
-        DataSourceMode::Filesystem => {
-            let current_file = app
-                .json_viewer
-                .current_file
-                .as_ref()
-                .and_then(|p| p.to_str())
-                .unwrap_or("No file selected");
-            format!("File: {}", current_file)
-        }
-        DataSourceMode::Mqtt => {
-            // Try to get MQTT-specific status
-            let base_location = app.data_source.get_location();
-            let status = if let Some(mqtt_source) = unsafe {
-                // Safe because we know it's MqttSource in Mqtt mode
-                (app.data_source.as_ref() as *const dyn DataSource as *const MqttSource).as_ref()
-            } {
-                mqtt_source.connection_status.clone()
-            } else {
-                base_location
-            };
-            status
-        }
+    // Prefer a source-provided status text; fall back to a generic location or file info
+    let location_info = if let Some(text) = app.data_source.status_text() {
+        text
+    } else {
+        // Fallback shows file info if any, otherwise the data source location
+        let current_file = app
+            .json_viewer
+            .current_file
+            .as_ref()
+            .and_then(|p| p.to_str())
+            .unwrap_or("No file selected");
+        format!("{} | File: {}", app.data_source.get_location(), current_file)
     };
 
     let help_text = match app.input_mode {
@@ -303,8 +288,8 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         Line::from(help_text),
     ];
 
-    let paragraph =
-        Paragraph::new(status).block(Block::default().borders(Borders::ALL).title("Status"));
+    let paragraph = Paragraph::new(status)
+        .block(Block::default().borders(Borders::ALL).title("Status"));
 
     f.render_widget(paragraph, area);
 }

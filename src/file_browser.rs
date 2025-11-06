@@ -3,12 +3,14 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 #[derive(Clone)]
-pub enum FileEntry {
+enum FileEntry {
     Directory(PathBuf),
     File(PathBuf),
 }
 
+#[allow(dead_code)]
 pub struct FileBrowser {
+    #[allow(private_interfaces)]
     pub entries: Vec<FileEntry>,
     pub selected_index: usize,
     pub current_path: PathBuf,
@@ -16,6 +18,7 @@ pub struct FileBrowser {
     pub scroll_offset: usize,
 }
 
+#[allow(dead_code)]
 impl FileBrowser {
     pub fn new(root: &Path) -> Result<Self> {
         let current_path = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());

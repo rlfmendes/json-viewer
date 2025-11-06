@@ -63,6 +63,16 @@ pub trait DataSource {
         None
     }
 
+    /// Whether this data source benefits from periodic refresh (e.g., streaming sources)
+    fn needs_periodic_refresh(&self) -> bool {
+        false
+    }
+
     /// Get access to Any for downcasting to concrete types
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    /// Optional human-readable status text for the status bar
+    fn status_text(&self) -> Option<String> {
+        None
+    }
 }

@@ -94,7 +94,7 @@ impl FilesystemSource {
 
             data_entries.push(DataEntry {
                 id: idx.to_string(),
-                display_name: format!("{} {}", prefix, display_name),
+                display_name: format!("{prefix} {display_name}"),
                 is_navigable,
                 metadata: None,
             });
@@ -137,6 +137,7 @@ impl FilesystemSource {
         }
     }
 
+    #[allow(dead_code)]
     fn is_parent_selected(&self) -> bool {
         self.has_parent && self.selected_index == 0
     }
@@ -239,5 +240,13 @@ impl DataSource for FilesystemSource {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn status_text(&self) -> Option<String> {
+        Some(format!(
+            "Path: {} | Entries: {}",
+            self.current_path.to_string_lossy(),
+            self.data_entries.len()
+        ))
     }
 }

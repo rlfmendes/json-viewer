@@ -19,10 +19,11 @@ Start here if you're new to the project:
    - Query syntax examples
 
 3. **[README.md](README.md)**
-   - Project overview and features
-   - Installation options (DevContainer, .deb, source)
-   - Architecture support (x86_64, ARM64)
-   - Basic usage and commands
+    - Project overview and features
+    - Filesystem and MQTT modes (usage and CLI flags)
+    - Installation options (DevContainer, .deb, source)
+    - Architecture support (x86_64, ARM64)
+    - Basic usage and commands
 
 ## 🧪 Testing & Quality
 
@@ -145,15 +146,19 @@ Start here if you're new to the project:
 - debian/* - Package config
 
 #### 📝 Source Code
-- src/main.rs - Entry point
-- src/app.rs - App state
-- src/file_browser.rs - File navigation
-- src/json_viewer.rs - JSON handling
+- src/main.rs - Entry point and CLI (filesystem/MQTT)
+- src/app.rs - App state and event loop
+- src/data_source.rs - DataSource trait abstraction
+- src/filesystem_source.rs - Filesystem implementation
+- src/mqtt_source.rs - MQTT implementation (live messages)
+- src/file_browser.rs - Legacy helper retained for compatibility
+- src/json_viewer.rs - JSON handling and viewing
 - src/ui.rs - UI rendering
 
 #### 🧪 Examples
 - examples/sample-data.json - Simple example
-- examples/nested-data.json - Complex example
+- examples/nested-data.json - Nested example
+- examples/*.json - Additional data sets
 
 ## 🎯 Common Tasks → Documentation
 
@@ -218,6 +223,7 @@ Start here if you're new to the project:
 - **Ratatui (TUI)**: https://ratatui.rs/
 - **JQL Query Language**: https://github.com/yamafaktory/jql
 - **Crossterm**: https://docs.rs/crossterm/
+- **rumqttc (MQTT client)**: https://docs.rs/rumqttc/
 - **Cargo Book**: https://doc.rust-lang.org/cargo/
 
 ## 📌 Quick Command Reference
@@ -230,6 +236,7 @@ Start here if you're new to the project:
 make run                    # Run with examples
 cargo run -- examples/      # Run directly
 cargo run -- /path/to/dir   # Run on custom directory
+cargo run -- --mqtt mqtt://host:1883 --mqtt-topic sensors/#   # MQTT mode
 
 # Building
 make build                  # Debug build
